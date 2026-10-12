@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rubric Submission Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#f3f5f7; --paper:#ffffff; --ink:#1d2733; --muted:#5d6b7a; --line:#cfd6dd;
+  --accent:#1f5f8b; --accent-ink:#ffffff; --warn:#a63a2b; --ok:#2c6e49;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#161b21; --paper:#1f262d; --ink:#e6ebf0; --muted:#98a5b3; --line:#38424d;
+        --accent:#6fb1dd; --accent-ink:#0f1a24; --warn:#e58a7b; --ok:#7fc79b;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.55 Georgia,"Times New Roman",serif}
+main{max-width:760px;margin:0 auto;padding:28px 18px 80px}
+h1{font-size:1.7rem;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:1.15rem;margin:0 0 4px}
+p.lead{color:var(--muted);margin:0 0 22px}
+.sans,label,button,input,textarea,.meta{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.card{background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--accent);
+  border-radius:3px;padding:16px 18px;margin:0 0 16px}
+.card .desc{color:var(--muted);margin:2px 0 12px;white-space:pre-wrap}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>*{flex:1 1 200px}
+label{display:block;font-size:.85rem;font-weight:600;margin:10px 0 4px}
+input,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:3px;
+  background:var(--bg);color:var(--ink);font-size:.95rem}
+textarea{min-height:110px;resize:vertical;line-height:1.45}
+input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
+  padding:9px 16px;border-radius:3px;font-size:.95rem;font-weight:600}
+button.ghost{background:transparent;color:var(--accent)}
+button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:18px 0}
+.meta{font-size:.85rem;color:var(--muted)}
+.pts{max-width:140px}
+.err{color:var(--warn);font-size:.82rem;min-height:1.1em;font-family:system-ui,sans-serif}
+.total{position:sticky;bottom:0;background:var(--paper);border-top:1px solid var(--line);
+  padding:12px 18px;margin:24px -18px 0;display:flex;justify-content:space-between;
+  align-items:center;gap:12px;flex-wrap:wrap}
+.total strong{font-size:1.1rem}
+.linkbox{word-break:break-all;font-size:.8rem;background:var(--bg);border:1px dashed var(--line);
+  padding:8px;border-radius:3px;margin-top:8px}
+.entry{display:flex;gap:8px;align-items:flex-start;margin:0 0 8px}
+.entry textarea{min-height:64px;flex:1}
+.entry .dot{flex:0 0 7px;height:7px;border-radius:50%;background:var(--accent);margin-top:15px}
+.plus,.x{width:34px;height:34px;padding:0;border-radius:50%;font-size:1.3rem;line-height:1;font-weight:400;display:inline-flex;align-items:center;justify-content:center}
+.plus{margin:2px 0 6px;background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.x{flex:0 0 34px;margin-top:4px;background:transparent;color:var(--muted);border:1px solid var(--line)}
+.x:hover{color:var(--warn);border-color:var(--warn)}
+.hidden{display:none}
+.msg{font-family:system-ui,sans-serif;font-size:.9rem;color:var(--ok);min-height:1.2em}
+</style>
+</head>
+<body>
+<main>
+
+<!-- INSTRUCTOR VIEW -->
+<section id="builder" class="hidden">
+  <h1>Create a submission template</h1>
+  <p class="lead">Enter your rubric, then copy the link and share it with students. Each student gets their own blank form in their own browser.</p>
+
+  <div class="row">
+    <div><label for="aTitle">Assignment title</label><input id="aTitle" placeholder="Project 2: Data Analysis"></div>
+    <div><label for="aCourse">Course (optional)</label><input id="aCourse" placeholder="STAT 200"></div>
+  </div>
+
+  <label for="csvFile">Import your rubric as CSV</label>
+  <p class="meta" style="margin:0 0 8px">Columns: title, description, points. A header row is optional. Export from Excel or Google Sheets as CSV.</p>
+  <div class="bar" style="margin-top:0">
+    <input id="csvFile" type="file" accept=".csv,.tsv,.txt,text/csv" style="max-width:320px">
+    <button class="ghost" id="tplBtn" type="button">Download CSV template</button>
+  </div>
+  <label for="paste">Or paste rows from a spreadsheet</label>
+  <textarea id="paste" placeholder="Title,Description,Points&#10;Introduction,State the question and why it matters,10"></textarea>
+  <div class="bar"><button class="ghost" id="importBtn" type="button">Add pasted rows as items</button></div>
+
+  <div id="items"></div>
+  <div class="bar">
+    <button class="ghost" id="addItem" type="button">Add item</button>
+    <span class="meta" id="sumPts"></span>
+  </div>
+
+  <div class="bar">
+    <button id="dlJson" type="button">Download rubric file</button>
+    <label class="ghost sans" style="margin:0;border:1px solid var(--line);padding:9px 14px;border-radius:3px;cursor:pointer;color:var(--accent)">Load a rubric file<input id="loadJson" type="file" accept=".json,application/json" class="hidden"></label>
+    <button class="ghost" id="preview" type="button">Preview as student</button>
+  </div>
+  <div id="fileHelp" class="linkbox hidden"></div>
+  <p class="meta" style="margin-top:22px">Short rubric? You can skip the file and make a self-contained link instead.</p>
+  <div class="bar" style="margin-top:0"><button class="ghost" id="makeLink" type="button">Create student link</button></div>
+  <div id="linkOut" class="hidden">
+    <div class="msg" id="copyMsg"></div>
+    <div class="linkbox" id="linkText"></div>
+  </div>
+</section>
+
+<!-- STUDENT VIEW -->
+<section id="student" class="hidden">
+  <h1 id="sTitle"></h1>
+  <p class="lead" id="sCourse"></p>
+  <div class="row">
+    <div><label for="sName">Your name</label><input id="sName" autocomplete="name"></div>
+    <div><label for="sId">Student ID (optional)</label><input id="sId"></div>
+  </div>
+  <div id="sItems" style="margin-top:18px"></div>
+  <div class="total">
+    <span class="sans">Total claimed: <strong id="tot">0</strong> / <span id="max">0</span></span>
+    <span><button id="pdfBtn" type="button">Download PDF</button></span>
+  </div>
+  <p class="meta">Your answers stay in this browser. Nothing is uploaded anywhere. Download the PDF and submit it the way your instructor asked.</p>
+  <div class="err" id="sErr"></div>
+</section>
+
+</main>
+
+<script>
+(function(){
+  var $ = function(id){return document.getElementById(id)};
+  var rubric = {title:"", course:"", items:[]};
+  var previewing = false;
+
+  // ---------- encode / decode rubric in the URL hash ----------
+  function enc(obj){
+    var bytes = new TextEncoder().encode(JSON.stringify(obj));
+    var bin = ""; bytes.forEach(function(b){bin += String.fromCharCode(b)});
+    return btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+  }
+  function dec(str){
+    str = str.replace(/-/g,"+").replace(/_/g,"/");
+    while(str.length % 4) str += "=";
+    var bin = atob(str), bytes = new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    return JSON.parse(new TextDecoder().decode(bytes));
+  }
+  function store(key,val){try{localStorage.setItem(key,val)}catch(e){}}
+  function load(key){try{return localStorage.getItem(key)}catch(e){return null}}
+
+  // ---------- routing ----------
+  var hash = location.hash.replace(/^#r=/,"");
+  var fileName = new URLSearchParams(location.search).get("a");
+  var storeKey = "sub-";
+  var answers = {};
+  function route(){
+    if(fileName){
+      if(!/^[\w\-]+$/.test(fileName)) return notFound();
+      storeKey = "sub-file-" + fileName;
+      fetch("rubrics/" + fileName + ".json")
+        .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+        .then(function(r){ rubric = r; showStudent(); })
+        .catch(notFound);
+    } else if(location.hash.indexOf("#r=")===0 && hash){
+      storeKey = "sub-" + hash.slice(0,60);
+      try{ rubric = dec(hash); showStudent(); } catch(e){ showBuilder(); }
+    } else showBuilder();
+  }
+  function notFound(){
+    document.querySelector("main").innerHTML =
+      '<h1>Rubric not found</h1><p class="lead">Check the link with your instructor.</p>';
+  }
+
+  // ---------- builder ----------
+  function showBuilder(){
+    $("builder").classList.remove("hidden");
+    $("student").classList.add("hidden");
+    var draft = load("rubric-draft");
+    if(draft){try{rubric = JSON.parse(draft)}catch(e){}}
+    if(!rubric.items.length) rubric.items.push({title:"",desc:"",pts:10});
+    $("aTitle").value = rubric.title || "";
+    $("aCourse").value = rubric.course || "";
+    renderItems();
+  }
+  function esc(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;")}
+  function renderItems(){
+    $("items").innerHTML = rubric.items.map(function(it,i){
+      return '<div class="card" data-i="'+i+'">'+
+        '<div class="row"><div style="flex:3 1 220px"><label>Title</label><input data-f="title" value="'+esc(it.title)+'"></div>'+
+        '<div class="pts"><label>Points</label><input data-f="pts" type="number" min="0" step="any" value="'+esc(it.pts)+'"></div></div>'+
+        '<label>Description</label><textarea data-f="desc" style="min-height:70px">'+esc(it.desc)+'</textarea>'+
+        '<div class="bar" style="margin:8px 0 0"><button class="danger" data-del="'+i+'" type="button">Remove</button></div></div>';
+    }).join("");
+    updateSum();
+  }
+  function updateSum(){
+    var s = rubric.items.reduce(function(a,b){return a + (parseFloat(b.pts)||0)},0);
+    $("sumPts").textContent = rubric.items.length+" items, "+s+" points total";
+  }
+  $("items").addEventListener("input",function(e){
+    var card = e.target.closest(".card"); if(!card) return;
+    var it = rubric.items[+card.dataset.i], f = e.target.dataset.f;
+    it[f==="desc"?"desc":f] = e.target.value; updateSum(); saveDraft();
+  });
+  $("items").addEventListener("click",function(e){
+    if(e.target.dataset.del!==undefined){
+      rubric.items.splice(+e.target.dataset.del,1); renderItems(); saveDraft();
+    }
+  });
+  $("addItem").onclick = function(){rubric.items.push({title:"",desc:"",pts:10}); renderItems(); saveDraft();};
+  $("aTitle").oninput = $("aCourse").oninput = function(){
+    rubric.title=$("aTitle").value; rubric.course=$("aCourse").value; saveDraft();
+  };
+  function saveDraft(){store("rubric-draft",JSON.stringify(rubric))}
+
+  function parseCSV(text){
+    text = text.replace(/^\uFEFF/,"");
+    var first = text.split(/\r?\n/)[0] || "";
+    var d = first.indexOf("\t")>-1 ? "\t" : ",";
+    var rows=[], row=[], f="", q=false;
+    for(var i=0;i<text.length;i++){
+      var c = text[i];
+      if(q){
+        if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; }
+        else f+=c;
+      } else if(c==='"') q=true;
+      else if(c===d){row.push(f);f="";}
+      else if(c==="\n"||c==="\r"){
+        if(c==="\r"&&text[i+1]==="\n") i++;
+        row.push(f); f=""; rows.push(row); row=[];
+      } else f+=c;
+    }
+    if(f!==""||row.length){row.push(f);rows.push(row);}
+    return rows.filter(function(r){return r.some(function(x){return x.trim()})});
+  }
+  function importCSV(text){
+    var rows = parseCSV(text);
+    if(!rows.length){alert("No rows found in that CSV.");return}
+    var ti=0, di=1, pi=2;
+    var h = rows[0].map(function(x){return x.trim().toLowerCase()});
+    if(h.some(function(x){return /title|criteri|item|descr|point|pts|score/.test(x)})){
+      rows.shift();
+      var find = function(re,def){var k=h.findIndex(function(x){return re.test(x)});return k<0?def:k};
+      ti = find(/title|criteri|item|name/,0);
+      di = find(/descr/,1);
+      pi = find(/point|pts|score|max/,2);
+    }
+    var added = rows.map(function(r){
+      return {
+        title:(r[ti]||"").trim(),
+        desc:(r[di]||"").trim(),
+        pts:parseFloat(String(r[pi]||"").replace(/[^\d.\-]/g,""))||0
+      };
+    }).filter(function(i){return i.title});
+    if(!added.length){alert("No rubric items found. Each row needs a title.");return}
+    if(rubric.items.length===1 && !rubric.items[0].title && !rubric.items[0].desc) rubric.items=[];
+    rubric.items = rubric.items.concat(added);
+    renderItems(); saveDraft();
+  }
+  $("importBtn").onclick = function(){
+    importCSV($("paste").value); $("paste").value="";
+  };
+  $("csvFile").onchange = function(e){
+    var f = e.target.files[0]; if(!f) return;
+    f.text().then(importCSV); e.target.value="";
+  };
+  $("tplBtn").onclick = function(){
+    var csv = 'Title,Description,Points\r\nIntroduction,"State the question, and why it matters",10\r\nMethods,Describe your approach in enough detail to repeat it,20\r\n';
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    a.download = "rubric-template.csv"; a.click();
+  };
+
+  function cleanRubric(){
+    return {
+      title:$("aTitle").value.trim()||"Submission",
+      course:$("aCourse").value.trim(),
+      items:rubric.items.filter(function(i){return i.title.trim()}).map(function(i){
+        return {title:i.title.trim(),desc:(i.desc||"").trim(),pts:parseFloat(i.pts)||0};
+      })
+    };
+  }
+  $("makeLink").onclick = function(){
+    var r = cleanRubric();
+    if(!r.items.length){alert("Add at least one item with a title.");return}
+    var url = location.href.split("#")[0] + "#r=" + enc(r);
+    $("linkOut").classList.remove("hidden");
+    $("linkText").textContent = url;
+    var done = function(){$("copyMsg").textContent="Link copied. Send it to your students."};
+    if(navigator.clipboard) navigator.clipboard.writeText(url).then(done,function(){$("copyMsg").textContent="Copy the link below."});
+    else $("copyMsg").textContent="Copy the link below.";
+  };
+  $("dlJson").onclick = function(){
+    var r = cleanRubric();
+    if(!r.items.length){alert("Add at least one item with a title.");return}
+    var name = r.title.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || "rubric";
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(r,null,2)],{type:"application/json"}));
+    a.download = name + ".json"; a.click();
+    var base = location.href.split(/[?#]/)[0];
+    $("fileHelp").classList.remove("hidden");
+    $("fileHelp").innerHTML = "1. Put <b>"+name+".json</b> in a folder named <b>rubrics</b> in your repo and commit it.<br>2. Give students this link:<br><b>"+base+"?a="+name+"</b>";
+  };
+  $("loadJson").onchange = function(e){
+    var f = e.target.files[0]; if(!f) return;
+    f.text().then(function(t){
+      var r = JSON.parse(t);
+      rubric = {title:r.title||"", course:r.course||"", items:r.items};
+      $("aTitle").value = rubric.title; $("aCourse").value = rubric.course;
+      renderItems(); saveDraft();
+    }).catch(function(){alert("That file is not a valid rubric.")});
+    e.target.value = "";
+  };
+  $("preview").onclick = function(){
+    var r = cleanRubric();
+    if(!r.items.length){alert("Add at least one item with a title.");return}
+    window.open(location.href.split("#")[0] + "#r=" + enc(r), "_blank");
+  };
+
+  // ---------- student form ----------
+  
+  function showStudent(){
+    $("student").classList.remove("hidden");
+    $("builder").classList.add("hidden");
+    document.title = rubric.title || "Submission";
+    $("sTitle").textContent = rubric.title || "Submission";
+    $("sCourse").textContent = rubric.course || "";
+    var saved = load(storeKey);
+    if(saved){try{answers = JSON.parse(saved)}catch(e){answers={}}}
+    $("sName").value = answers.name || ""; $("sId").value = answers.id || "";
+    answers.items = answers.items || {};
+    rubric.items.forEach(function(_,i){ getAns(i); });
+    $("sItems").innerHTML = rubric.items.map(function(it,i){
+      return '<div class="card" data-i="'+i+'"><h2>'+esc(it.title)+' <span class="meta">('+it.pts+' pts)</span></h2>'+
+        (it.desc?'<div class="desc">'+esc(it.desc)+'</div>':'')+
+        '<label>How did you complete this item?</label>'+
+        '<div class="list"></div>'+
+        '<button class="plus" data-add type="button" aria-label="Add another list item" title="Add another list item">+</button>'+
+        '<div class="pts"><label>Points you claim (max '+it.pts+')</label>'+
+        '<input data-f="pts" type="number" min="0" max="'+it.pts+'" step="any" value="'+esc(answers.items[i].pts)+'"></div>'+
+        '<div class="err"></div></div>';
+    }).join("");
+    rubric.items.forEach(function(_,i){ renderList(i); });
+    $("max").textContent = rubric.items.reduce(function(a,b){return a+b.pts},0);
+    updateTotal();
+  }
+  // each item's answer is {list:[...], pts}; older saved drafts used {text}
+  function getAns(i){
+    var a = answers.items[i] = answers.items[i] || {};
+    if(!Array.isArray(a.list)) a.list = [a.text || ""];
+    if(!a.list.length) a.list = [""];
+    if(a.pts === undefined) a.pts = "";
+    return a;
+  }
+  function renderList(i){
+    var card = $("sItems").children[i], list = card.querySelector(".list"), a = getAns(i);
+    list.innerHTML = a.list.map(function(t,k){
+      return '<div class="entry"><span class="dot" aria-hidden="true"></span>'+
+        '<textarea data-k="'+k+'" aria-label="List item '+(k+1)+'">'+esc(t)+'</textarea>'+
+        (a.list.length>1?'<button class="x" data-rm="'+k+'" type="button" aria-label="Remove list item '+(k+1)+'" title="Remove">&times;</button>':'')+
+        '</div>';
+    }).join("");
+  }
+  function persist(){
+    answers.name=$("sName").value; answers.id=$("sId").value;
+    store(storeKey,JSON.stringify(answers));
+  }
+  function updateTotal(){
+    var t = 0;
+    Object.keys(answers.items||{}).forEach(function(k){t += parseFloat(answers.items[k].pts)||0});
+    $("tot").textContent = Math.round(t*100)/100;
+  }
+  $("sName").oninput = $("sId").oninput = persist;
+  $("sItems").addEventListener("input",function(e){
+    var card = e.target.closest(".card"); if(!card) return;
+    var i = card.dataset.i, a = getAns(i);
+    if(e.target.dataset.k !== undefined){
+      a.list[+e.target.dataset.k] = e.target.value;
+    } else if(e.target.dataset.f === "pts"){
+      a.pts = e.target.value;
+      var max = rubric.items[i].pts, v = parseFloat(a.pts);
+      card.querySelector(".err").textContent = (v>max)?"That is more than the "+max+" points available.":(v<0?"Points cannot be negative.":"");
+      updateTotal();
+    }
+    persist();
+  });
+  $("sItems").addEventListener("click",function(e){
+    var card = e.target.closest(".card"); if(!card) return;
+    var i = card.dataset.i, a = getAns(i);
+    if(e.target.dataset.add !== undefined){
+      a.list.push(""); renderList(+i);
+      var tas = card.querySelectorAll(".entry textarea"); tas[tas.length-1].focus();
+    } else if(e.target.dataset.rm !== undefined){
+      a.list.splice(+e.target.dataset.rm,1); renderList(+i);
+    } else return;
+    persist();
+  });
+
+  // ---------- PDF ----------
+  $("pdfBtn").onclick = function(){
+    var err = $("sErr"); err.textContent = "";
+    if(!$("sName").value.trim()){err.textContent="Enter your name before downloading.";$("sName").focus();return}
+    for(var i=0;i<rubric.items.length;i++){
+      var v = parseFloat((answers.items[i]||{}).pts);
+      if(isNaN(v) || v<0 || v>rubric.items[i].pts){
+        err.textContent = "Enter valid points for \""+rubric.items[i].title+"\" (0 to "+rubric.items[i].pts+").";
+        return;
+      }
+    }
+    var doc = new window.jspdf.jsPDF({unit:"pt",format:"letter"});
+    var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+    var M = 54, TW = W - 2*M, y = M;
+    function need(h){ if(y + h > H - M){doc.addPage(); y = M;} }
+    function para(text,size,style,gap){
+      doc.setFont("helvetica",style||"normal"); doc.setFontSize(size);
+      var lh = size*1.3;
+      doc.splitTextToSize(text||"",TW).forEach(function(line){need(lh); doc.text(line,M,y+size*0.9); y+=lh;});
+      y += (gap||0);
+    }
+    para(rubric.title||"Submission",18,"bold",2);
+    if(rubric.course) para(rubric.course,11,"normal",2);
+    para("Name: "+$("sName").value.trim()+($("sId").value.trim()?"    ID: "+$("sId").value.trim():""),11,"normal",2);
+    para("Date: "+new Date().toLocaleDateString(),11,"normal",8);
+    doc.setDrawColor(150); doc.line(M,y,W-M,y); y += 14;
+
+    rubric.items.forEach(function(it,i){
+      var a = getAns(i);
+      need(60);
+      para(it.title+"  ("+a.pts+" / "+it.pts+" pts claimed)",13,"bold",2);
+      if(it.desc){doc.setTextColor(90); para(it.desc,10,"italic",6); doc.setTextColor(0);}
+      var entries = a.list.map(function(t){return t.trim()}).filter(Boolean);
+      if(!entries.length) entries = ["(no response)"];
+      doc.setFont("helvetica","normal"); doc.setFontSize(11);
+      entries.forEach(function(t){
+        var lines = doc.splitTextToSize(t, TW-16), lh = 14.3;
+        need(lh);
+        doc.circle(M+4, y+6, 1.6, "F");
+        lines.forEach(function(line){ need(lh); doc.text(line, M+16, y+11*0.9); y += lh; });
+        y += 3;
+      });
+      y += 11;
+    });
+    need(30); doc.line(M,y,W-M,y); y += 16;
+    para("Total claimed: "+$("tot").textContent+" / "+$("max").textContent,13,"bold",0);
+
+    var fname = ($("sName").value.trim()+"_"+(rubric.title||"submission")).replace(/[^\w\-]+/g,"_");
+    doc.save(fname+".pdf");
+  };
+
+  route();
+})();
+</script>
+</body>
+</html>
