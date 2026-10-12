@@ -106,7 +106,13 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
   <p class="lead" id="sCourse"></p>
   <div class="row">
     <div><label for="sName">Your name</label><input id="sName" autocomplete="name"></div>
-    <div><label for="sId">Student ID (optional)</label><input id="sId"></div>
+    <div><label for="sTeam">Group / team number</label><input id="sTeam"></div>
+  </div>
+  <label for="sMembers">Group members</label>
+  <textarea id="sMembers" style="min-height:64px" placeholder="One name per line"></textarea>
+  <div class="row">
+    <div><label for="sGithub">GitHub link</label><input id="sGithub" type="url" placeholder="https://github.com/..."></div>
+    <div><label for="sItch">itch.io link</label><input id="sItch" type="url" placeholder="https://yourname.itch.io/..."></div>
   </div>
   <div id="sItems" style="margin-top:18px"></div>
   <div class="total">
@@ -146,6 +152,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
   var fileName = new URLSearchParams(location.search).get("a");
   var storeKey = "sub-";
   var answers = {};
+  var FIELDS = [["sName","name"],["sTeam","team"],["sMembers","members"],["sGithub","github"],["sItch","itch"]];
   function route(){
     if(fileName){
       if(!/^[\w\-]+$/.test(fileName)) return notFound();
@@ -320,7 +327,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     $("sCourse").textContent = rubric.course || "";
     var saved = load(storeKey);
     if(saved){try{answers = JSON.parse(saved)}catch(e){answers={}}}
-    $("sName").value = answers.name || ""; $("sId").value = answers.id || "";
+    FIELDS.forEach(function(f){ $(f[0]).value = answers[f[1]] || ""; });
     answers.items = answers.items || {};
     rubric.items.forEach(function(_,i){ getAns(i); });
     $("sItems").innerHTML = rubric.items.map(function(it,i){
@@ -354,7 +361,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     }).join("");
   }
   function persist(){
-    answers.name=$("sName").value; answers.id=$("sId").value;
+    FIELDS.forEach(function(f){ answers[f[1]] = $(f[0]).value; });
     store(storeKey,JSON.stringify(answers));
   }
   function updateTotal(){
@@ -362,7 +369,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     Object.keys(answers.items||{}).forEach(function(k){t += parseFloat(answers.items[k].pts)||0});
     $("tot").textContent = Math.round(t*100)/100;
   }
-  $("sName").oninput = $("sId").oninput = persist;
+  FIELDS.forEach(function(f){ $(f[0]).oninput = persist; });
   $("sItems").addEventListener("input",function(e){
     var card = e.target.closest(".card"); if(!card) return;
     var i = card.dataset.i, a = getAns(i);
@@ -411,7 +418,12 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     }
     para(rubric.title||"Submission",18,"bold",2);
     if(rubric.course) para(rubric.course,11,"normal",2);
-    para("Name: "+$("sName").value.trim()+($("sId").value.trim()?"    ID: "+$("sId").value.trim():""),11,"normal",2);
+    var v = function(id){return $(id).value.trim()};
+    para("Name: "+v("sName"),11,"normal",2);
+    if(v("sTeam")) para("Group number: "+v("sTeam"),11,"normal",2);
+    if(v("sMembers")) para("Group members: "+v("sMembers").split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean).join(", "),11,"normal",2);
+    if(v("sGithub")) para("GitHub: "+v("sGithub"),11,"normal",2);
+    if(v("sItch")) para("itch.io: "+v("sItch"),11,"normal",2);
     para("Date: "+new Date().toLocaleDateString(),11,"normal",8);
     doc.setDrawColor(150); doc.line(M,y,W-M,y); y += 14;
 
