@@ -25,6 +25,7 @@ p.lead{color:var(--muted);margin:0 0 22px}
 .card{background:var(--paper);border:1px solid var(--line);border-left:4px solid var(--accent);
   border-radius:3px;padding:16px 18px;margin:0 0 16px}
 .card .desc{color:var(--muted);margin:2px 0 12px;white-space:pre-wrap}
+.required-mark{color:var(--warn);font-family:system-ui,sans-serif;font-weight:700}
 .row{display:flex;gap:12px;flex-wrap:wrap}
 .row>*{flex:1 1 200px}
 label{display:block;font-size:.85rem;font-weight:600;margin:10px 0 4px}
@@ -55,6 +56,10 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
 .x:hover{color:var(--warn);border-color:var(--warn)}
 .hidden{display:none}
 .msg{font-family:system-ui,sans-serif;font-size:.9rem;color:var(--ok);min-height:1.2em}
+#sErr{position:fixed;z-index:10;top:16px;right:16px;max-width:min(440px,calc(100vw - 32px));
+  padding:12px 16px;background:var(--paper);border:1px solid var(--warn);border-left:4px solid var(--warn);
+  border-radius:3px;box-shadow:0 4px 18px #0003;color:var(--warn)}
+#sErr:empty{display:none}
 </style>
 </head>
 <body>
@@ -62,7 +67,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
 
 <!-- INSTRUCTOR VIEW -->
 <section id="builder" class="hidden">
-  <h1>Create a submission template</h1>
+  <h1>Create a Contributions Summary template</h1>
   <p class="lead">Enter your rubric, then copy the link and share it with students.</p>
 
   <div class="row">
@@ -120,7 +125,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     <span><button id="pdfBtn" type="button">Download PDF</button></span>
   </div>
   <p class="meta">Your answers stay in this browser. Nothing is uploaded anywhere. Download the PDF and submit it the way your instructor asked.</p>
-  <div class="err" id="sErr"></div>
+  <div class="err" id="sErr" role="alert" aria-live="assertive"></div>
 </section>
 
 </main>
@@ -130,6 +135,14 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
   var $ = function(id){return document.getElementById(id)};
   var rubric = {title:"", course:"", items:[]};
   var previewing = false;
+  var studentErrorTimer;
+
+  function showStudentError(message){
+    var err = $("sErr");
+    clearTimeout(studentErrorTimer);
+    err.textContent = message;
+    studentErrorTimer = setTimeout(function(){err.textContent = "";},4000);
+  }
 
   // ---------- encode / decode rubric in the URL hash ----------
   function enc(obj){
@@ -338,7 +351,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
       if(it.required===false && !a.list.some(function(t){return String(t||"").trim();}) && (a.pts===undefined || a.pts==="")) a.pts = "0";
     });
     $("sItems").innerHTML = rubric.items.map(function(it,i){
-      return '<div class="card" data-i="'+i+'"><h2>'+esc(it.title)+' <span class="meta">('+it.pts+' pts)</span></h2>'+
+      return '<div class="card" data-i="'+i+'"><h2>'+esc(it.title)+(it.required===false?'':' <span class="required-mark" title="Required">*</span>')+' <span class="meta">('+it.pts+' pts)</span></h2>'+ 
         (it.desc?'<div class="desc">'+esc(it.desc)+'</div>':'')+
         '<label>How did you complete this item?'+(it.required===false?' <span class="meta">(optional)</span>':'')+'</label>'+
         '<div class="list"></div>'+
@@ -404,8 +417,9 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
 
   // ---------- PDF ----------
   $("pdfBtn").onclick = function(){
-    var err = $("sErr"); err.textContent = "";
-    if(!$("sName").value.trim()){err.textContent="Enter your name before downloading.";$("sName").focus();return}
+    $("sErr").textContent = "";
+    clearTimeout(studentErrorTimer);
+    if(!$("sName").value.trim()){showStudentError("Enter your name before downloading.");$("sName").focus();return}
     for(var i=0;i<rubric.items.length;i++){
       var item = rubric.items[i], answer = getAns(i);
       var hasResponse = answer.list.some(function(t){return String(t||"").trim();});
@@ -414,11 +428,11 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
       var v = parseFloat(answer.pts);
       if(item.required===false && !hasResponse && (isNaN(v) || answer.pts==="")) { answer.pts = "0"; v = 0; }
       if(isNaN(v) || v<0 || v>item.pts || (item.required!==false && answer.pts==="")){
-        err.textContent = "Enter valid points for \""+item.title+"\" (0 to "+item.pts+").";
+        showStudentError("Enter valid points for \""+item.title+"\" (0 to "+item.pts+").");
         return;
       }
       if(item.required!==false && !hasResponse){
-        err.textContent = "Complete the required item \""+item.title+"\" before downloading.";
+        showStudentError("Complete the required item \""+item.title+"\" before downloading.");
         return;
       }
     }
