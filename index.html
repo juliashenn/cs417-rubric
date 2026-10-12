@@ -63,21 +63,21 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
 <!-- INSTRUCTOR VIEW -->
 <section id="builder" class="hidden">
   <h1>Create a submission template</h1>
-  <p class="lead">Enter your rubric, then copy the link and share it with students. Each student gets their own blank form in their own browser.</p>
+  <p class="lead">Enter your rubric, then copy the link and share it with students.</p>
 
   <div class="row">
-    <div><label for="aTitle">Assignment title</label><input id="aTitle" placeholder="Project 2: Data Analysis"></div>
-    <div><label for="aCourse">Course (optional)</label><input id="aCourse" placeholder="STAT 200"></div>
+    <div><label for="aTitle">Assignment title</label><input id="aTitle" value="MP1"></div>
+    <div><label for="aCourse">Course (optional)</label><input id="aCourse" value="CS417"></div>
   </div>
 
   <label for="csvFile">Import your rubric as CSV</label>
-  <p class="meta" style="margin:0 0 8px">Columns: title, description, points. A header row is optional. Export from Excel or Google Sheets as CSV.</p>
+  <p class="meta" style="margin:0 0 8px">Columns: title, description, points, and required. A header row is optional. Export from Excel or Google Sheets as CSV.</p>
   <div class="bar" style="margin-top:0">
     <input id="csvFile" type="file" accept=".csv,.tsv,.txt,text/csv" style="max-width:320px">
     <button class="ghost" id="tplBtn" type="button">Download CSV template</button>
   </div>
   <label for="paste">Or paste rows from a spreadsheet</label>
-  <textarea id="paste" placeholder="Title,Description,Points&#10;Introduction,State the question and why it matters,10"></textarea>
+  <textarea id="paste" placeholder="Title,Description,Points,Required&#10;Introduction,State the question and why it matters,10,true"></textarea>
   <div class="bar"><button class="ghost" id="importBtn" type="button">Add pasted rows as items</button></div>
 
   <div id="items"></div>
@@ -87,8 +87,8 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
   </div>
 
   <div class="bar">
-    <button id="dlJson" type="button">Download rubric file</button>
-    <label class="ghost sans" style="margin:0;border:1px solid var(--line);padding:9px 14px;border-radius:3px;cursor:pointer;color:var(--accent)">Load a rubric file<input id="loadJson" type="file" accept=".json,application/json" class="hidden"></label>
+    <button id="dlJson" type="button">Download rubric as JSON</button>
+    <label class="ghost sans" style="margin:0;border:1px solid var(--line);padding:9px 14px;border-radius:3px;cursor:pointer;color:var(--accent)">Load rubric JSON<input id="loadJson" type="file" accept=".json,application/json" class="hidden"></label>
     <button class="ghost" id="preview" type="button">Preview as student</button>
   </div>
   <div id="fileHelp" class="linkbox hidden"></div>
