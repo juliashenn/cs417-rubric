@@ -189,6 +189,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
         '<div class="row"><div style="flex:3 1 220px"><label>Title</label><input data-f="title" value="'+esc(it.title)+'"></div>'+
         '<div class="pts"><label>Points</label><input data-f="pts" type="number" min="0" step="any" value="'+esc(it.pts)+'"></div></div>'+
         '<label>Description</label><textarea data-f="desc" style="min-height:70px">'+esc(it.desc)+'</textarea>'+
+        '<label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input data-f="required" type="checkbox" '+(it.required!==false?'checked':'')+' style="width:auto"> Required (students must complete this item)</label>'+
         '<div class="bar" style="margin:8px 0 0"><button class="danger" data-del="'+i+'" type="button">Remove</button></div></div>';
     }).join("");
     updateSum();
@@ -200,14 +201,16 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
   $("items").addEventListener("input",function(e){
     var card = e.target.closest(".card"); if(!card) return;
     var it = rubric.items[+card.dataset.i], f = e.target.dataset.f;
-    it[f==="desc"?"desc":f] = e.target.value; updateSum(); saveDraft();
+    if(f==="required") it.required = e.target.checked;
+    else it[f==="desc"?"desc":f] = e.target.value;
+    updateSum(); saveDraft();
   });
   $("items").addEventListener("click",function(e){
     if(e.target.dataset.del!==undefined){
       rubric.items.splice(+e.target.dataset.del,1); renderItems(); saveDraft();
     }
   });
-  $("addItem").onclick = function(){rubric.items.push({title:"",desc:"",pts:10}); renderItems(); saveDraft();};
+  $("addItem").onclick = function(){rubric.items.push({title:"",desc:"",pts:10,required:true}); renderItems(); saveDraft();};
   $("aTitle").oninput = $("aCourse").oninput = function(){
     rubric.title=$("aTitle").value; rubric.course=$("aCourse").value; saveDraft();
   };
@@ -276,7 +279,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
       title:$("aTitle").value.trim()||"Submission",
       course:$("aCourse").value.trim(),
       items:rubric.items.filter(function(i){return i.title.trim()}).map(function(i){
-        return {title:i.title.trim(),desc:(i.desc||"").trim(),pts:parseFloat(i.pts)||0};
+        return {title:i.title.trim(),desc:(i.desc||"").trim(),pts:parseFloat(i.pts)||0,required:i.required!==false};
       })
     };
   }
@@ -305,7 +308,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     var f = e.target.files[0]; if(!f) return;
     f.text().then(function(t){
       var r = JSON.parse(t);
-      rubric = {title:r.title||"", course:r.course||"", items:r.items};
+      rubric = {title:r.title||"", course:r.course||"", items:(r.items||[]).map(function(it){return Object.assign({required:true},it);})};
       $("aTitle").value = rubric.title; $("aCourse").value = rubric.course;
       renderItems(); saveDraft();
     }).catch(function(){alert("That file is not a valid rubric.")});
@@ -329,11 +332,15 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     if(saved){try{answers = JSON.parse(saved)}catch(e){answers={}}}
     FIELDS.forEach(function(f){ $(f[0]).value = answers[f[1]] || ""; });
     answers.items = answers.items || {};
-    rubric.items.forEach(function(_,i){ getAns(i); });
+    rubric.items.forEach(function(it,i){
+      var a = getAns(i);
+      // For an untouched optional item, default claimed points to zero.
+      if(it.required===false && !a.list.some(function(t){return String(t||"").trim();}) && (a.pts===undefined || a.pts==="")) a.pts = "0";
+    });
     $("sItems").innerHTML = rubric.items.map(function(it,i){
       return '<div class="card" data-i="'+i+'"><h2>'+esc(it.title)+' <span class="meta">('+it.pts+' pts)</span></h2>'+
         (it.desc?'<div class="desc">'+esc(it.desc)+'</div>':'')+
-        '<label>How did you complete this item?</label>'+
+        '<label>How did you complete this item?'+(it.required===false?' <span class="meta">(optional)</span>':'')+'</label>'+
         '<div class="list"></div>'+
         '<button class="plus" data-add type="button" aria-label="Add another list item" title="Add another list item">+</button>'+
         '<div class="pts"><label>Points you claim (max '+it.pts+')</label>'+
@@ -348,7 +355,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     var a = answers.items[i] = answers.items[i] || {};
     if(!Array.isArray(a.list)) a.list = [a.text || ""];
     if(!a.list.length) a.list = [""];
-    if(a.pts === undefined) a.pts = "";
+    if(a.pts === undefined) a.pts = (rubric.items[i] && rubric.items[i].required===false) ? "0" : "";
     return a;
   }
   function renderList(i){
@@ -400,12 +407,23 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     var err = $("sErr"); err.textContent = "";
     if(!$("sName").value.trim()){err.textContent="Enter your name before downloading.";$("sName").focus();return}
     for(var i=0;i<rubric.items.length;i++){
-      var v = parseFloat((answers.items[i]||{}).pts);
-      if(isNaN(v) || v<0 || v>rubric.items[i].pts){
-        err.textContent = "Enter valid points for \""+rubric.items[i].title+"\" (0 to "+rubric.items[i].pts+").";
+      var item = rubric.items[i], answer = getAns(i);
+      var hasResponse = answer.list.some(function(t){return String(t||"").trim();});
+      // An unanswered optional item is automatically claimed as zero points.
+      if(item.required===false && !hasResponse && (answer.pts===undefined || answer.pts==="")) answer.pts = "0";
+      var v = parseFloat(answer.pts);
+      if(item.required===false && !hasResponse && (isNaN(v) || answer.pts==="")) { answer.pts = "0"; v = 0; }
+      if(isNaN(v) || v<0 || v>item.pts || (item.required!==false && answer.pts==="")){
+        err.textContent = "Enter valid points for \""+item.title+"\" (0 to "+item.pts+").";
+        return;
+      }
+      if(item.required!==false && !hasResponse){
+        err.textContent = "Complete the required item \""+item.title+"\" before downloading.";
         return;
       }
     }
+    persist();
+    updateTotal();
     var doc = new window.jspdf.jsPDF({unit:"pt",format:"letter"});
     var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
     var M = 54, TW = W - 2*M, y = M;
