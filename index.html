@@ -48,7 +48,9 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
 .linkbox{word-break:break-all;font-size:.8rem;background:var(--bg);border:1px dashed var(--line);
   padding:8px;border-radius:3px;margin-top:8px}
 .entry{display:flex;gap:8px;align-items:flex-start;margin:0 0 8px}
-.entry textarea{min-height:64px;flex:1}
+.entry-fields{flex:1;min-width:0;display:grid;gap:6px}
+.entry input{width:min(220px,100%)}
+.entry textarea{min-height:64px}
 .entry .dot{flex:0 0 7px;height:7px;border-radius:50%;background:var(--accent);margin-top:15px}
 .plus,.x{width:34px;height:34px;padding:0;border-radius:50%;font-size:1.3rem;line-height:1;font-weight:400;display:inline-flex;align-items:center;justify-content:center}
 .plus{margin:2px 0 6px;background:transparent;color:var(--accent);border:1px solid var(--accent)}
@@ -67,7 +69,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
 
 <!-- INSTRUCTOR VIEW -->
 <section id="builder" class="hidden">
-  <h1>Create a Contributions Summary template</h1>
+  <h1>Contributions Summary template</h1>
   <p class="lead">Enter your rubric, then copy the link and share it with students.</p>
 
   <div class="row">
@@ -353,7 +355,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     $("sItems").innerHTML = rubric.items.map(function(it,i){
       return '<div class="card" data-i="'+i+'"><h2>'+esc(it.title)+(it.required===false?'':' <span class="required-mark" title="Required">*</span>')+' <span class="meta">('+it.pts+' pts)</span></h2>'+ 
         (it.desc?'<div class="desc">'+esc(it.desc)+'</div>':'')+
-        '<label>How did you complete this item?'+(it.required===false?' <span class="meta">(optional)</span>':'')+'</label>'+
+        '<label>Describe/list how you completed this item with timestamps'+(it.required===false?' <span class="meta">(optional)</span>':'')+'</label>'+
         '<div class="list"></div>'+
         '<button class="plus" data-add type="button" aria-label="Add another list item" title="Add another list item">+</button>'+
         '<div class="pts"><label>Points you claim (max '+it.pts+')</label>'+
@@ -368,14 +370,17 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     var a = answers.items[i] = answers.items[i] || {};
     if(!Array.isArray(a.list)) a.list = [a.text || ""];
     if(!a.list.length) a.list = [""];
+    if(!Array.isArray(a.timestamps)) a.timestamps = [];
+    while(a.timestamps.length < a.list.length) a.timestamps.push("");
     if(a.pts === undefined) a.pts = (rubric.items[i] && rubric.items[i].required===false) ? "0" : "";
     return a;
   }
   function renderList(i){
     var card = $("sItems").children[i], list = card.querySelector(".list"), a = getAns(i);
     list.innerHTML = a.list.map(function(t,k){
-      return '<div class="entry"><span class="dot" aria-hidden="true"></span>'+
-        '<textarea data-k="'+k+'" aria-label="List item '+(k+1)+'">'+esc(t)+'</textarea>'+
+      return '<div class="entry"><span class="dot" aria-hidden="true"></span><div class="entry-fields">'+
+        '<input data-ts="'+k+'" type="text" placeholder="Timestamp (e.g. 00:01:23)" aria-label="Timestamp for list item '+(k+1)+'" value="'+esc(a.timestamps[k])+'">'+
+        '<textarea data-k="'+k+'" aria-label="Answer '+(k+1)+'">'+esc(t)+'</textarea></div>'+ 
         (a.list.length>1?'<button class="x" data-rm="'+k+'" type="button" aria-label="Remove list item '+(k+1)+'" title="Remove">&times;</button>':'')+
         '</div>';
     }).join("");
@@ -395,6 +400,8 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     var i = card.dataset.i, a = getAns(i);
     if(e.target.dataset.k !== undefined){
       a.list[+e.target.dataset.k] = e.target.value;
+    } else if(e.target.dataset.ts !== undefined){
+      a.timestamps[+e.target.dataset.ts] = e.target.value;
     } else if(e.target.dataset.f === "pts"){
       a.pts = e.target.value;
       var max = rubric.items[i].pts, v = parseFloat(a.pts);
@@ -407,10 +414,10 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     var card = e.target.closest(".card"); if(!card) return;
     var i = card.dataset.i, a = getAns(i);
     if(e.target.dataset.add !== undefined){
-      a.list.push(""); renderList(+i);
+      a.list.push(""); a.timestamps.push(""); renderList(+i);
       var tas = card.querySelectorAll(".entry textarea"); tas[tas.length-1].focus();
     } else if(e.target.dataset.rm !== undefined){
-      a.list.splice(+e.target.dataset.rm,1); renderList(+i);
+      a.list.splice(+e.target.dataset.rm,1); a.timestamps.splice(+e.target.dataset.rm,1); renderList(+i);
     } else return;
     persist();
   });
@@ -464,11 +471,15 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
       need(60);
       para(it.title+"  ("+a.pts+" / "+it.pts+" pts claimed)",13,"bold",2);
       if(it.desc){doc.setTextColor(90); para(it.desc,10,"italic",6); doc.setTextColor(0);}
-      var entries = a.list.map(function(t){return t.trim()}).filter(Boolean);
+      var entries = a.list.map(function(t,k){
+        var timestamp = String(a.timestamps[k]||"").trim();
+        return {text:t.trim(), timestamp:timestamp};
+      }).filter(function(entry){return entry.text});
       if(!entries.length) entries = ["(no response)"];
       doc.setFont("helvetica","normal"); doc.setFontSize(11);
-      entries.forEach(function(t){
-        var lines = doc.splitTextToSize(t, TW-16), lh = 14.3;
+      entries.forEach(function(entry){
+        var text = typeof entry === "string" ? entry : (entry.timestamp ? entry.timestamp+" - " : "")+entry.text;
+        var lines = doc.splitTextToSize(text, TW-16), lh = 14.3;
         need(lh);
         doc.circle(M+4, y+6, 1.6, "F");
         lines.forEach(function(line){ need(lh); doc.text(line, M+16, y+11*0.9); y += lh; });
