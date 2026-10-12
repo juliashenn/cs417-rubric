@@ -126,7 +126,7 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
     <span class="sans">Total claimed: <strong id="tot">0</strong></span>
     <span><button id="pdfBtn" type="button">Download PDF</button></span>
   </div>
-  <p class="meta">Your answers stay in this browser. Nothing is uploaded anywhere. Download the PDF and submit it the way your instructor asked.</p>
+  <p class="meta">Download the PDF and submit it with your assignment.</p>
   <div class="err" id="sErr" role="alert" aria-live="assertive"></div>
 </section>
 
@@ -340,8 +340,9 @@ button.danger{background:transparent;color:var(--warn);border-color:var(--line)}
   function showStudent(){
     $("student").classList.remove("hidden");
     $("builder").classList.add("hidden");
-    document.title = rubric.title || "Submission";
-    $("sTitle").textContent = rubric.title || "Submission";
+    var assignmentTitle = String(rubric.title || "").trim();
+    document.title = assignmentTitle ? assignmentTitle + " Contribution Summary" : "Contribution Summary";
+    $("sTitle").textContent = document.title;
     $("sCourse").textContent = rubric.course || "";
     var saved = load(storeKey);
     if(saved){try{answers = JSON.parse(saved)}catch(e){answers={}}}
